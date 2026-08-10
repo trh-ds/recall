@@ -1,140 +1,204 @@
-# PRD — Offline AI Personal Assistant for Android (MVP)
+# PRD — Recall (v0.1, MVP)
 
-**Working title:** Pocket (placeholder — rename later)
-**Owner:** Tirth
-**Status:** Draft v1 — MVP scoping
+> Working name: **Recall** (placeholder, not final).
+> Status: MVP / pre-build. Owner: Tirth.
+> Companion docs: `AGENT.md` (build context) · *Agentic AI Wrist Assistant — India Market Assessment* (research) · *Wrist-Assistant MVP Brief* (feature brief).
 
 ---
 
 ## 1. Vision
 
-An on-device AI layer for Android that remembers what the user tells it, resurfaces it at the right moment (voice or idle time), and answers questions by searching its own memory — not another chatbot, a private second brain that works offline.
+An **agentic AI personal assistant** that lives on your wrist and *acts* for you — triaging
+the noise, remembering what matters, and moving your day forward without you pulling out a
+phone. Not another notification mirror; not another chatbot. The assistant you *wear*.
 
-## 2. Problem Statement
-
-Users forget small but important things (who owes them money, a deadline mentioned in passing, a file someone sent) because capturing and retrieving that info today means manually opening the right app and searching. No offline-first, privacy-preserving tool exists that treats "remembering" as a first-class product feature.
-
-## 3. Target User
-
-Power users / students / early professionals who juggle many small commitments (money, tasks, files, conversations) across apps and want a private, always-available memory layer — not a general-purpose chatbot.
-
-## 4. MVP Scope — Core Features
-
-| # | Feature | Description |
-|---|---------|-------------|
-| 1 | **Capture memory** | User tells the assistant something (voice or text) → parsed into a structured memory (fact, task, reminder, debt, note) + stored with embedding. |
-| 2 | **Recall / Q&A** | User asks a natural-language question → query embedded → vector search over local memory store → LLM composes an answer from retrieved memories. |
-| 3 | **Smart reminders** | Time-based ("remind me tomorrow at 6") and context-based (idle-time / "free moment") nudges surface pending items without needing exact timing. |
-| 4 | **On-device LLM inference** | Small quantized model handles parsing, retrieval-augmented answering, and reminder phrasing — runs locally, invoked only on demand (event-driven, not always-on). |
-| 5 | **Local vector store** | All embeddings/memories persisted on-device; nothing leaves the phone by default. |
-| 6 | **Minimal UI** | Chat-style input for capture/query + a simple feed/list of active reminders and open items. |
-
-## 5. Explicitly Out of Scope for MVP (Phase 2+)
-
-- Notification / email indexing and summarization
-- WhatsApp, file, contacts, calendar indexing ("find the PDF Rahul sent")
-- Automated morning briefing
-- Cloud LLM fallback for deep reasoning
-- GUI automation / cross-app actions
-
-MVP proves the core loop: **capture → store → recall → remind.** Everything else is an indexing/integration layer bolted on afterward.
-
-## 6. Core User Flows
-
-**A. Capture**
-1. User says/types: "Rahul owes me ₹2000 for the trip."
-2. Assistant classifies intent (fact vs. task vs. reminder), extracts entities, stores as a memory record + embedding.
-3. Confirms briefly: "Noted."
-
-**B. Recall**
-1. User asks: "Who owes me money?"
-2. Query embedded → top-k similar memories retrieved from vector store.
-3. LLM synthesizes a direct answer from retrieved records, not from general knowledge.
-
-**C. Reminder**
-1. User says: "Remind me to submit the OS assignment before Friday."
-2. Stored as a task with a due window.
-3. Assistant surfaces it either at the explicit time, or opportunistically when it detects the user is idle/free (e.g., screen unlocked with no active app engagement for N minutes), whichever the design settles on for detecting "free time" on Android.
-
-## 7. High-Level Architecture
-
-```
-[Voice/Text Input]
-       │
-       ▼
-[Wake/Trigger Layer] — event-driven: voice command, explicit open, or scheduled check
-       │
-       ▼
-[Intent Parser] (on-device LLM, small quantized model)
-       │
-       ├──► [Memory Writer] → structured record + embedding → [Local Vector DB]
-       │
-       └──► [Query Engine] → embed query → similarity search → [Local Vector DB]
-                                     │
-                                     ▼
-                          [LLM Answer Composer] → response to user
-       │
-       ▼
-[Reminder Scheduler] — Android WorkManager / AlarmManager
-   (time-based + idle-detection triggers)
-```
-
-## 8. Data Model (memory record — draft)
-
-```json
-{
-  "id": "uuid",
-  "type": "fact | task | reminder | debt | note",
-  "raw_text": "string",
-  "extracted": { "entity": "Rahul", "amount": 2000, "due": "2026-08-10" },
-  "embedding": "float[]",
-  "created_at": "timestamp",
-  "status": "open | done | dismissed",
-  "surface_after": "timestamp | idle_trigger | null"
-}
-```
-
-## 9. Tech Stack
-
-| Layer | Choice | Notes |
-|---|---|---|
-| App shell | **React Native** (New Architecture) + TypeScript | Your call — fast iteration, one codebase |
-| On-device LLM | **llama.rn** (RN binding for llama.cpp, GGUF models) | Runs quantized small models (Phi/Qwen/Gemma-class, ~1–3B) locally |
-| Embeddings | Same llama.cpp runtime, small embedding model (e.g. quantized MiniLM/gte-small GGUF) | Keeps inference + embedding on one runtime, less native surface |
-| Vector store | **ObjectBox** (has RN binding + built-in HNSW vector search) | Avoids hand-rolling vector search in SQLite; fallback: `op-sqlite` + `sqlite-vec` extension |
-| Fast local KV | **MMKV** (`react-native-mmkv`) | App state, settings, session cache |
-| Speech-to-text | `@react-native-voice/voice` (native OS speech recognizer, on-device where supported) | `whisper.rn` as a heavier fallback if accuracy demands it |
-| Local notifications | **Notifee** | Reliable scheduled + triggered reminders on RN |
-| Background/idle scheduling | Thin native module wrapping `WorkManager`/`AlarmManager` (Android side) + `react-native-background-fetch` | RN has no direct equivalent — this needs native code either way |
-| Idle/free-time detection | Native module: screen-state + foreground-app/usage-stats signals | No clean cross-platform API; Android-only native bridge required |
-
-## 10. Non-Functional Requirements
-
-- **Offline-first:** core loop (capture/recall/remind) must work with zero network.
-- **Privacy:** no memory content leaves the device without explicit user action.
-- **Battery:** model loads only on trigger, unloads after use; no persistent background inference.
-- **Latency:** capture and recall should feel near-instant (<2–3s) on a ~16GB RAM device.
-
-## 11. Success Metrics (MVP)
-
-- Daily active capture events per user
-- % of reminders acted on vs. dismissed
-- Recall query success rate (user doesn't have to rephrase)
-- Retention after 2 weeks
-
-## 12. Open Questions / Risks
-
-- Which on-device model size gives acceptable quality vs. RAM/battery budget?
-- Reliable, non-invasive "user is idle/free" signal on Android without excessive permissions.
-- On-device STT accuracy for casual speech vs. cloud STT quality.
-- How much structuring (intent classification) can run reliably on a small local model vs. needing a bigger model.
-
-## 13. Roadmap
-
-- **Phase 1 (MVP):** Capture, recall, reminders, local vector store, minimal UI.
-- **Phase 2:** Notification + WhatsApp/file/contacts/calendar indexing, morning briefing.
-- **Phase 3:** Optional cloud LLM hybrid for deep reasoning on explicit request.
+**Positioning:** competes on **capability**, not luxury or price. An Apple Watch *notifies*;
+you still do the work. Recall *does the work*. (See §9 for the incumbent moat.)
 
 ---
 
-Ready for feature-by-feature go/no-go review.
+## 2. Problem
+
+Busy people lose hours to context-switching and notification overload. Evidence (global
+proxies; India-specific quantification is a known gap to close with our own testers):
+
+- Knowledge workers toggle between apps **~1,200×/day**, ~4 hrs/week just reorienting —
+  ~9% of work time (HBR, 2022).
+- ~**23 minutes** to refocus after a significant interruption (UC Irvine / Gloria Mark).
+- Existing wearables and assistants are **passive** — they alert, they don't act.
+
+The gap: **no shipping consumer product does proactive, agentic action from the wrist.**
+That white space is real but time-limited (see §9).
+
+---
+
+## 3. Target users
+
+| Segment | Role | Pain | Willingness to pay | Use in strategy |
+|---|---|---|---|---|
+| **Primary ICP** | Metro professionals, founders, sales (25–45), ₹15–50L/yr | High (email/calendar/meeting overload) | High (proven premium-wearable spend) | Monetisation target |
+| **MVP testers** | High-performing students (e.g. B.Tech + MBA) | High (deadlines, notification chaos) | Low | **First free cohort — retention proof** |
+| **Secondary** | Remote workers / freelancers | Med-High | Medium | Later expansion |
+
+The **MVP ships to students first** to validate the daily habit loop cheaply. The **revenue
+ICP is metro professionals** — the product must be designed so the same core generalises up
+to them.
+
+---
+
+## 4. Goals & success metrics
+
+**The single metric that gates the whole project:**
+> **>60% week-4 retention** of the student cohort **+ a credible free→paid conversion signal**,
+> achieved **before** any hardware investment.
+
+Supporting metrics:
+- Daily-active return rate (does the briefing earn a daily open?).
+- Feature-level engagement (which feature drives opens).
+- Task-capture → completion rate.
+- Qualitative: "would you be disappointed if this disappeared?" (target >40% "very").
+
+If engagement decays like a typical fitness tracker (~30% abandon within months), that is a
+**NO-GO** signal for hardware — fix the loop first.
+
+---
+
+## 5. Scope
+
+### In scope (MVP — Android app, on-device, no backend)
+Voice-first Android app that runs entirely on-device, calling free LLM APIs directly.
+
+### Out of scope (MVP)
+- Custom hardware / wristband / Wear OS app (later phase).
+- Cloud backend, hosted DB, user accounts/auth.
+- Autonomous sending/posting (email send, message send) — later, and gated by autonomy model.
+- Health/fitness tracking, payments, smart-home, IoT.
+- iOS (Android-first; testers are on Android).
+
+---
+
+## 6. MVP features (student cohort)
+
+Priority: **P0** = must ship, **P1** = strongly wanted, **P2** = nice-to-have.
+
+| # | Feature | Priority | What it does | Habit role |
+|---|---|---|---|---|
+| F1 | **Daily briefing** | **P0** | Morning summary: today's classes, deadlines, top 3 tasks; evening wrap of what slipped | **Anchor habit** |
+| F2 | **Deadline & assignment tracker** | **P0** | Proactive countdown reminders ("DBMS assignment due in 6h, not started") | Retention driver |
+| F3 | **Voice quick-capture** | **P0** | Speak a thought mid-lecture → transcribed, auto-tagged (assignment/idea/todo), recalled later | Core "agentic" feel |
+| F4 | **Notification triage** | **P1** | Filters noisy college/club groups from what matters (faculty, placement cell, teammates) | Solves the stated pain |
+| F5 | **Timetable "what's next"** | **P1** | Knows the schedule; surfaces next class/room/prep at a glance | Daily utility |
+| F6 | **Ask-my-notes + PDF summariser** | **P1** | Summarise a long PDF shared on WhatsApp; Q&A across saved notes before exams | Exam-time stickiness |
+| F7 | **Exam-prep countdown** | **P2** | Spaced study nudges built from the timetable | Seasonal driver |
+
+**Memory (v1):** store captures/notes in SQLite; retrieve by **keyword + recency** — good
+enough to feel smart. Add embeddings (NVIDIA NIM embedding models) only after the loop is validated.
+
+---
+
+## 7. Full-product feature set (roadmap vision — NOT MVP)
+
+The mature product's eight capabilities, for direction only:
+
+1. Agentic email management (triage, draft, send-on-approval)
+2. Calendar intelligence (optimal slots, conflict resolution, prep context)
+3. Task orchestration (priority by deadline/urgency)
+4. Voice-first capture & control
+5. Integration layer (Gmail, Calendar, Slack, WhatsApp, CRM)
+6. Contextual notification filtering
+7. Meeting booking automation
+8. Real-time summarisation & role-aware briefings
+
+Heavy reasoning for these runs on **cloud LLMs** — on-device open-weight models can't reason
+reliably enough for professionals, and an agent that errs *costs* them time. The wrist stays
+a thin interface (display, mic, haptics, confirmations).
+
+---
+
+## 8. UX principles
+
+- **Daily value or death.** The briefing must be fresh and useful every day — it is the habit.
+- **Glanceable.** Every output readable in ~2 seconds; designed as if already on a wrist.
+- **Voice-first.** Hands-free capture and readout; typing is the fallback, not the default.
+- **Graduated autonomy.** Suggest → Confirm → Auto, unlocked per capability. Default Suggest.
+  Nothing irreversible without explicit approval. (Trust is the adoption bottleneck.)
+- **Transparent by design.** The user always knows what was read and what was sent to an LLM.
+
+---
+
+## 9. Competitive & moat
+
+- **White space:** agentic *action* on the wrist is unoccupied today (Apple Watch, Galaxy
+  Watch, Whoop, Ultrahuman = passive; Bee/Limitless = passive capture; Humane/Rabbit = failed).
+- **Threat is near:** Gemini on Wear OS (2025); agentic Siri, Gemini-powered, slated 2026.
+  A wrist-only feature is "Sherlockable" (cf. Pebble after Apple Watch).
+- **Defensible moat is NOT the form factor.** It is: **cross-platform workflow depth**
+  (Gmail + Calendar + tasks acting together across Google/Microsoft/Apple), **trust/privacy
+  positioning**, and **speed to a daily habit** before incumbents generalise. Vertical depth
+  (sales / founders / consultants) is the wedge incumbents won't prioritise.
+
+---
+
+## 10. Technical requirements
+
+- **Platform:** React Native (Expo), TypeScript, Android-first.
+- **On-device only:** no server; SQLite + MMKV storage; agent loop in TS.
+- **LLM providers (free tiers):** NVIDIA NIM (primary), Groq (speed), Gemini Flash (long
+  context) — OpenAI-compatible, behind one abstraction with **failover**.
+- **Security:** restricted/low-quota keys only in client builds; move keys behind a thin
+  proxy **before any public release** (keys in an APK are extractable).
+- Full engineering detail: see `AGENT.md`.
+
+---
+
+## 11. Privacy & compliance (DPDP Act 2023 + DPDP Rules 2025)
+
+- Consent notice on first launch (plain language; itemises data read + third-party LLM egress).
+- Data stays on-device; minimise what's sent to LLMs.
+- In-app **export** and **delete all data**; consent withdrawal purges data.
+- Least-privilege, in-context permission requests.
+- Below the "Significant Data Fiduciary" threshold, no mandatory DPO/DPIA — but privacy-by-design
+  is core to the trust proposition regardless.
+
+---
+
+## 12. Monetisation (post-validation)
+
+- **Hybrid** (thin hardware + subscription) — the only India-proven premium-wearable model
+  (cf. Whoop, Ultrahuman). Hardware-only is unsound given recurring cloud-LLM cost.
+- **Price anchors are low in India:** ChatGPT Go ₹399/mo, Google AI Plus ₹199–399/mo.
+  Likely sub band **₹399–999/mo**, sold on *time saved*, not AI novelty.
+- MVP is **free** to testers; monetisation is validated only after the retention gate.
+
+---
+
+## 13. Roadmap
+
+1. **MVP** — React Native student app (§6), on-device, restricted keys. → prove retention.
+2. Collect genuine reviews; iterate the habit loop.
+3. Add thin proxy + move reasoning to stronger cloud models; expand to professional ICP features.
+4. **Wear OS companion** on existing hardware (Galaxy Watch / Wear OS) — no custom silicon.
+5. Only then: explore custom hardware / desk-robot form factor.
+
+---
+
+## 14. Risks & mitigations
+
+| Risk | Mitigation |
+|---|---|
+| Wearable/app abandonment (~30%; first 2–4 weeks decisive) | Anchor on a daily briefing that delivers fresh value every morning |
+| Incumbents ship agentic AI (Gemini/Siri 2026) | Win on cross-platform depth, trust, and speed to habit; go vertical |
+| Low India AI-subscription ARPU | Hybrid monetisation; sell outcomes; validate WTP with primary research |
+| Trust in autonomous action | Graduated autonomy, default Suggest, explicit confirmation |
+| Client-side API keys extractable | Restricted/low-quota keys now; proxy before public launch |
+| India pain-point data is a global proxy | Instrument the student cohort to gather first-party evidence |
+
+---
+
+## 15. Open questions (validate before hardware)
+
+1. Does the app hit **>60% week-4 retention** with a real free→paid signal? (Primary gate.)
+2. Will the professional ICP pay **₹15–25k hardware + monthly sub** at these economics?
+   (Needs conjoint/WTP research — note Ultrahuman earns only ~2.7% of revenue in India.)
+3. Is there a concrete moat that survives **Gemini Intelligence + agentic Siri** reaching
+   phones and watches by late 2026?

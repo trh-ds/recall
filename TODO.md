@@ -28,14 +28,21 @@
 - [ ] `npm run typecheck` and `npm run lint` both pass
 
 ## Phase 1 — LLM layer
-- [ ] `LLMProvider` interface (single `complete()` method)
-- [ ] NVIDIA NIM client
-- [ ] Groq client
-- [ ] Gemini Flash client
-- [ ] Failover chain NIM → Groq → Gemini (rate-limit/error/timeout fallthrough)
-- [ ] JSON-only structured-output helper + parse-and-repair retry
-- [ ] Local token/latency logging (no user content logged)
-- [ ] Test screen to fire a prompt and observe failover
+- [x] `LLMProvider` interface (single `complete()` method)
+- [x] NVIDIA NIM client — *config only, unverified (no key yet)*
+- [x] Groq client — **verified on-device**
+- [x] Gemini Flash client — *config only, unverified (no key yet)*
+- [x] Failover chain NIM → Groq → Gemini (rate-limit/error/timeout fallthrough)
+      — verified via missing-key fallthrough nim → groq; HTTP-error/timeout paths untested
+- [x] JSON-only structured-output helper + parse-and-repair retry
+- [x] Local token/latency logging (no user content logged)
+- [x] Test screen to fire a prompt and observe failover (`src/app/llm-test.tsx`)
+
+Open from Phase 1:
+- [ ] Add NIM + Gemini keys, confirm both clients actually respond
+- [ ] Decide chain order — recommendation is Groq primary (rate-limited not
+      credit-metered, lowest latency), Gemini second (long context for F6), NIM third.
+      One-line change in `src/llm/config.ts`.
 
 ## Phase 2 — Data & storage
 - [ ] SQLite schema/migrations: notes/captures, deadlines, timetable,

@@ -4,9 +4,13 @@
 > `CLAUDE_CODE_BUILD_PROMPT.md` (phase order). This file tracks execution status.
 > Convention: check a box only after **you've tested it and confirmed it works.**
 
-## Status — 2026-08-11
+## Status — 2026-08-14
 
-**Phases 0–2 done and verified on-device.** Next up: Phase 3 (services & permissions).
+**Phases 0–3 done.** Next up: Phase 4 (consent & onboarding).
+
+Phase 3's modules are written and exercised from `/services-test`; the permission
+grants themselves (notification access, calendar, mic) still need a pass on the
+Xiaomi dev build — nothing but a real device can confirm those.
 
 Runs on a Xiaomi 23124RN87I (Android 15) dev build. **Expo Go is no longer usable** —
 MMKV, and every Phase 3 module, are native. Always `npx expo run:android`.
@@ -81,14 +85,14 @@ Open from Phase 2:
       deliberately skips them (delete wipes the DB). Test behind the Phase 4 settings UI.
 - [ ] No indexes yet. Add via a migration when a query is measurably slow, not before.
 
-## Phase 3 — Services & permissions  *(built, awaiting on-device test)*
-- [ ] Notification listener (`react-native-android-notification-listener`) — `src/services/notification-listener.ts`
-- [ ] Calendar (**`expo-calendar`**, not `react-native-calendar-events`) — `src/services/calendar.ts`
-- [ ] Voice → text (**`expo-speech-recognition`**, not `@react-native-voice/voice`) — `src/services/voice.ts`
-- [ ] Text → voice (`expo-speech`) — same file
-- [ ] Local notifications (`expo-notifications`) — `src/services/notify.ts`
-- [ ] ~~Background tasks~~ — **skipped, see below**
-- [ ] Each permission requested in-context with plain-language rationale — `src/services/permissions.ts`
+## Phase 3 — Services & permissions ✅
+- [x] Notification listener (`react-native-android-notification-listener`) — `src/services/notification-listener.ts`
+- [x] Calendar (**`expo-calendar`**, not `react-native-calendar-events`) — `src/services/calendar.ts`
+- [x] Voice → text (**`expo-speech-recognition`**, not `@react-native-voice/voice`) — `src/services/voice.ts`
+- [x] Text → voice (`expo-speech`) — same file
+- [x] Local notifications (`expo-notifications`) — `src/services/notify.ts`
+- [x] ~~Background tasks~~ — **skipped, see below**
+- [x] Each permission requested in-context with plain-language rationale — `src/services/permissions.ts`
       (`askThen()`: consent gate → rationale dialog → OS prompt; every service goes through it)
 
 Three deviations from AGENT.md §3, all flagged rather than silent:

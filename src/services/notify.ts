@@ -69,6 +69,25 @@ export async function scheduleDeadlineReminder(
 export const cancelDeadlineReminder = (id: number) =>
   Notifications.cancelScheduledNotificationAsync(`deadline-${id}`);
 
+/**
+ * A focus block the user approved through the autonomy gate (AGENT.md §7).
+ * ponytail: it nudges at the start time; it does not write to the device calendar.
+ * A calendar write needs the write permission and a chosen target calendar — add
+ * `Calendar.createEventAsync` when the sheet can offer that choice.
+ */
+export async function scheduleFocusBlock(deadlineId: number, title: string, startAt: number) {
+  if (startAt <= Date.now()) return null;
+  if (!(await ensureNotifications())) return null;
+  return Notifications.scheduleNotificationAsync({
+    identifier: `focus-${deadlineId}`,
+    content: { title: 'Focus block starts now', body: title },
+    trigger: { type: SchedulableTriggerInputTypes.DATE, date: startAt, channelId: CHANNEL },
+  });
+}
+
+export const cancelFocusBlock = (deadlineId: number) =>
+  Notifications.cancelScheduledNotificationAsync(`focus-${deadlineId}`);
+
 export const scheduledNotifications = () => Notifications.getAllScheduledNotificationsAsync();
 
 export const cancelAllNotifications = () => Notifications.cancelAllScheduledNotificationsAsync();

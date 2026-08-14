@@ -2,7 +2,13 @@ import * as SQLite from 'expo-sqlite';
 
 import { consent, kv, kvSnapshot } from './kv';
 
-export type Note = { id: number; text: string; tag: string | null; created_at: number };
+export type Note = {
+  id: number;
+  text: string;
+  tag: string | null;
+  done: number;
+  created_at: number;
+};
 export type Deadline = {
   id: number;
   title: string;
@@ -68,6 +74,9 @@ const MIGRATIONS = [
      day TEXT NOT NULL,
      created_at INTEGER NOT NULL
    );`,
+  // A capture tagged `todo` is a task, and a task can be ticked off. Same table —
+  // the briefing's "Top 3" is a view over captures, not a second kind of thing.
+  `ALTER TABLE notes ADD COLUMN done INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 const TABLES = ['notes', 'deadlines', 'classes', 'notifications', 'events'] as const;
@@ -107,6 +116,18 @@ export function searchNotes(query: string, limit = 20): Note[] {
 
 export function recentNotes(limit = 20): Note[] {
   return db.getAllSync<Note>('SELECT * FROM notes ORDER BY created_at DESC LIMIT ?', [limit]);
+}
+
+/** Captures tagged `todo` — the briefing's "Top 3 today" (F1). Open ones first. */
+export function listTodos(limit = 3): Note[] {
+  return db.getAllSync<Note>(
+    "SELECT * FROM notes WHERE tag = 'todo' ORDER BY done ASC, created_at DESC LIMIT ?",
+    [limit],
+  );
+}
+
+export function toggleNote(id: number) {
+  db.runSync('UPDATE notes SET done = 1 - done WHERE id = ?', [id]);
 }
 
 const LIKE_ESCAPE = '\\';

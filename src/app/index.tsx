@@ -18,6 +18,9 @@ export default function HomeScreen() {
         <Link href="/db-test">
           <ThemedText type="linkPrimary">DB self-check</ThemedText>
         </Link>
+        <Link href="/services-test">
+          <ThemedText type="linkPrimary">Services test</ThemedText>
+        </Link>
       </SafeAreaView>
     </ThemedView>
   );

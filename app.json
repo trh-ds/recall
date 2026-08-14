@@ -27,7 +27,10 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-calendar",
+      "expo-speech-recognition",
+      "./plugins/with-canonical-prefixes"
     ],
     "experiments": {
       "typedRoutes": true

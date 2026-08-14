@@ -30,6 +30,12 @@ Traps already hit, so they don't get re-hit:
 - Keys go in `.env` only. `.env.example` is tracked — a real key there ships to GitHub.
 - Never sideload `android/app/build/outputs/apk/release/` on Xiaomi; HyperOS rejects it
   as "security reinforcement". Debug APK only.
+- The entry point is now `index.ts`, not `expo-router/entry` — the notification
+  listener's headless task has to be registered with the app killed. `index.ts` imports
+  `expo-router/entry` first, so routing is unchanged. Don't let a scaffold tool "fix"
+  `main` back.
+- `typecheck` fails on any new route until Metro regenerates `.expo/types` — start the
+  app once, then it passes. Not a real error.
 
 ---
 
@@ -75,14 +81,36 @@ Open from Phase 2:
       deliberately skips them (delete wipes the DB). Test behind the Phase 4 settings UI.
 - [ ] No indexes yet. Add via a migration when a query is measurably slow, not before.
 
-## Phase 3 — Services & permissions
-- [ ] Notification listener (`react-native-android-notification-listener`)
-- [ ] Calendar (`react-native-calendar-events`)
-- [ ] Voice → text (`@react-native-voice/voice`)
-- [ ] Text → voice (`expo-speech`)
-- [ ] Local notifications (`expo-notifications`)
-- [ ] Background tasks (`expo-task-manager` + `expo-background-fetch`)
-- [ ] Each permission requested in-context with plain-language rationale
+## Phase 3 — Services & permissions  *(built, awaiting on-device test)*
+- [ ] Notification listener (`react-native-android-notification-listener`) — `src/services/notification-listener.ts`
+- [ ] Calendar (**`expo-calendar`**, not `react-native-calendar-events`) — `src/services/calendar.ts`
+- [ ] Voice → text (**`expo-speech-recognition`**, not `@react-native-voice/voice`) — `src/services/voice.ts`
+- [ ] Text → voice (`expo-speech`) — same file
+- [ ] Local notifications (`expo-notifications`) — `src/services/notify.ts`
+- [ ] ~~Background tasks~~ — **skipped, see below**
+- [ ] Each permission requested in-context with plain-language rationale — `src/services/permissions.ts`
+      (`askThen()`: consent gate → rationale dialog → OS prompt; every service goes through it)
+
+Three deviations from AGENT.md §3, all flagged rather than silent:
+1. `@react-native-voice/voice` is **deprecated on npm**, and its own notice points at
+   `expo-speech-recognition`. Took the replacement. Note it's published for SDK 56 —
+   works on 57, watch it.
+2. `react-native-calendar-events` last shipped 2022. `expo-calendar` is first-party,
+   has a config plugin, and is already an Expo SDK module. Took it. SDK 57 uses the
+   new API (`getCalendars`/`listEvents`), not the legacy `getEventsAsync`.
+3. **No background task at all.** The briefing (F1) and deadline nudges (F2) are
+   scheduled local notifications — a DAILY trigger and a DATE trigger. An OS alarm
+   survives HyperOS's background killing; `expo-background-task` can't promise a 7am
+   slot anyway. Cost: briefing text is written when scheduled, so re-run
+   `scheduleDailyBriefing()` on every app open. Revisit only if same-morning freshness
+   turns out to matter.
+
+`react-native-android-notification-listener` (2022, peer-locked to React 18) needs
+`patches/react-native-android-notification-listener+5.0.1.patch` to build at all —
+AGP 8 namespace, its own AGP 4.2.1 buildscript, Java 8 targets, and an
+`allowBackup="false"` that collides with the app manifest. Also strips its
+`READ_PHONE_STATE` request, which we never use (§8 least-privilege). `patch-package`
+runs on `postinstall`; if a fresh clone won't build, that's the first thing to check.
 
 ## Phase 4 — Consent & onboarding
 - [ ] First-launch DPDP consent screen (what's read, what's sent to LLMs)
